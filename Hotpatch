@@ -1,0 +1,90 @@
+ThinPad E540 取代传统静态DSDT使用Hotpatch学习记录
+
+一、前言：
+本人主力笔记本E540，在已经使用DSDT➕SSDT的方式完美安装10.12.6以后，为顺应趋势，也为日后升级10.13做准备，便开始学习和研究hotpatch。
+本人在学习过程过程中参考的资料：
+1、http://bbs.pcbeta.com/viewthread-1745275-1-1.html
+2、http://bbs.pcbeta.com/viewthread-1752094-1-1.html
+3、http://bbs.pcbeta.com/viewthread-1753771-1-1.html
+上述三个帖子在学习过程中给了很大帮助。其中第二个帖子是Thinkpad的hotpatch通用资源分享帖，帮助最大，在此表示感谢。
+二、机子配置：
+处理器：i7-4770HQ（BGA转针PGA）
+内存：  DDR3 1600 4G*2
+显卡：核显HD5200（Iris Pro）独显GT840M（已屏蔽）
+声卡：CX2751/2，输入输出正常，睡眠唤醒有声
+无线网卡：Bcm94360CS2（拆机刷白名单，白名单教程参考我的另一个帖子）
+有线网卡：放个Kext解决的事情，在此不做解释
+电池：采用上述第二个帖子的SSDT-BAT_think解决。
+三、目前安装情况：
+    1、核显完美驱动，亮度可调可保存。独显屏蔽
+2、声卡由AppleALC驱动AppleHDA来驱动，输入输出正常，HDMI音频待测试。
+3、无线网卡免驱，5G正常，Airport可用
+4、蓝牙免驱，hanoff默认开启
+5、USB驱动正常
+6、电池驱动正常
+7、变频为SSDTPR生成SSDT，15档变频，默认加载X86
+	8、HDMI视频输出不可用，且插上HDMI线内屏花屏
+	9、连接电源适配器的情况下关机变重启，只用电池时正常。
+四、Hotpatch相关：
+关于原理和使用方法请参照以上两个帖子自行学习。
+
+补充：有几个补丁，之前不太认识，查了一下是usb睡眠相关的，之前dsdt补丁没有（或者是不一样）
+change Method(_PTS,1,N) to ZPTS, pair withSSDT-PTSWAK.aml
+change Method(_WAK,1,S) to ZWAK, pair withSSDT-PTSWAK.aml
+change Method(XWAK,0,S) to ZWAK, pair withSSDT-XWAK.aml
+change Method(XSEL,0,S) to XSEZ, pair withSSDT-XSEL.aml
+change Method(ESEL,0,S) to ESEZ, pair withSSDT-ESEL.aml
+change Method(GPRW,2,N) to XPRW, pair withSSDT-GPRW.aml
+change LANC Method(_PRW,0,S) to Method(XPRW,0,..),pair with SSDT-LANC_PRW.aml
+注：以上几个补丁根据自己的DSDT来选择性添加，如果原始DSDT情况下不存在睡眠问题，不存在的个别方法，请不要启用更名补丁，会有意想不到的问题；如果机器睡眠确实有问题，再选择相应的补丁测试。
+
+五、我自己的配置：
+启用的更名补丁和调用的SSDT：
+	change _DSM to XDSM 
+	change _OSI to XOSI（放入SSDT-XOSI.aml会声卡不能驱动）
+	change EC0 to EC
+	change PCI0.VID to IGPU ,optionally pair with SSDT-IGPU.aml
+	change B0D3 to HDAU, optionally pair with SSDT-HDAU.aml
+	change HDAS to HDEF, optionally pair with SSDT-HDEF.aml
+	change XHCI to XHC，optionally pair with SSDT-XHC.aml
+	battery GBIF 03 to XBIF 03
+	battery GBST 04 to XBST 04
+	battery GBIX03 to XBIX03
+	Mutex BATM to zero0%
+	change EHC1 to EH01, optionally pair with SSDT-EH01.aml
+	change EHC2 to EH02, optionally pair with SSDT-EH02.aml
+	ESEL renamed ESEZ
+	_PRW 0d04 to _PRW 00(HDEF IBGE )
+	change Method(_PTS,1,N) to ZPTS, pair with SSDT-PTSWAK.aml
+	change Method(ESEL,0,N) to ESEZ, pair with SSDT-ESEL.aml
+	change LANC Method(_PRW,0,N) to Method(XPRW,0,..), pair with SSDT-LANC_PRW.aml（原补丁为_PRW,0,S，对于本机不适用，修改为_PRW,0,N)）
+六、Patch文件夹下SSDT：
+	SSDT-Config.aml
+	SSDT-IGPU.aml
+	SSDT-HDEF.aml
+	SSDT-HDAU.aml
+	SSDT-NODGP.aml（禁用独显相关）
+	SSDT-PR.aml（变频SSDT）
+	SSDT-PNLF.aml
+	SSDT-BATT_Think.aml（ThinkPad电池相关）
+	SSDT-XHC.aml（启用和不启用效果相同，所以删除，不启用）
+	SSDT-EH01.aml（启用和不启用效果相同，所以删除，不启用）
+	SSDT-EH02.aml（启用和不启用效果相同，所以删除，不启用）
+	SSDT-PTSWAK.aml
+	SSDT-ESEL.aml
+	SSDT-LANC_PRW.aml
+七、SSDT-Config.aml的参数配置：
+
+	Name (TYPE, One)
+	Name (HIGH, One)
+	Name (IGPI, 0x0A260006)
+	Name (DPTS, Zero)
+	Name (SHUT, Zero)
+	Name (XPEE, Zero)
+	Name (AUDL, 0x1C)请不要填写（0x28），不可用，请改为0x1C
+	Name (BKLT, One)
+	Name (LMAX, Ones)
+	Name (MODE, 0x40)Thinkpad机型相关（电池），可根据第二个帖子设置
+	Name (FBTP, Zero)
+备注：usbinjectall.kext和VoodooPS2Controller.kext已针对本机型做修改，请不要套用，E540,E440可以套用。
+我的帖子的地址：
